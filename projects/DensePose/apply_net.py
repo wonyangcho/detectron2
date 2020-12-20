@@ -20,11 +20,7 @@ from densepose import add_densepose_config, add_hrnet_config
 from densepose.utils.logger import verbosity_to_level
 from densepose.vis.base import CompoundVisualizer
 from densepose.vis.bounding_box import ScoredBoundingBoxVisualizer
-from densepose.vis.densepose_outputs_vertex import (
-    DensePoseOutputsTextureVisualizer,
-    DensePoseOutputsVertexVisualizer,
-    get_texture_atlases,
-)
+from densepose.vis.densepose_outputs_vertex import DensePoseOutputsVertexVisualizer
 from densepose.vis.densepose_results import (
     DensePoseResultsContourVisualizer,
     DensePoseResultsFineSegmentationVisualizer,
@@ -169,8 +165,31 @@ class DumpAction(InferenceAction):
                 result["pred_densepose"], _ = DensePoseResultExtractor()(outputs)
         context["results"].append(result)
 
+
+        ########################
+        
+        out_fname = context["out_fname"]
+        out_dir = os.path.dirname(out_fname)
+        
+        if len(out_dir) > 0 and not os.path.exists(out_dir):
+            os.makedirs(out_dir)
+
+        out_ext = os.path.splitext(out_fname)[1]
+
+        out_fname = os.path.basename(image_fpath)
+        out_fname = os.path.join(out_dir,out_fname)
+        out_fname = os.path.splitext(out_fname)[0]+out_ext
+        
+        with open(out_fname, "wb") as hFile:
+            pickle.dump(context["results"], hFile)
+            logger.info(f"Output saved to {out_fname}")
+
+        context["results"].clear()
+
+        ########################
+
     @classmethod
-    def create_context(cls: type, args: argparse.Namespace):
+    def create_context(cls: type, args: argparse.Namespace, cfg: CfgNode):
         context = {"results": [], "out_fname": args.output}
         return context
 
@@ -198,7 +217,6 @@ class ShowAction(InferenceAction):
         "dp_u": DensePoseResultsUVisualizer,
         "dp_v": DensePoseResultsVVisualizer,
         "dp_iuv_texture": DensePoseResultsVisualizerWithTexture,
-        "dp_cse_texture": DensePoseOutputsTextureVisualizer,
         "dp_vertex": DensePoseOutputsVertexVisualizer,
         "bbox": ScoredBoundingBoxVisualizer,
     }
@@ -229,16 +247,7 @@ class ShowAction(InferenceAction):
             "--nms_thresh", metavar="<threshold>", default=None, type=float, help="NMS threshold"
         )
         parser.add_argument(
-            "--texture_atlas",
-            metavar="<texture_atlas>",
-            default=None,
-            help="Texture atlas file (for IUV texture transfer)",
-        )
-        parser.add_argument(
-            "--texture_atlases_map",
-            metavar="<texture_atlases_map>",
-            default=None,
-            help="JSON string of a dict containing texture atlas files for each mesh",
+            "--texture_atlas", metavar="<texture_atlas>", default=None, help="Texture atlas file"
         )
         parser.add_argument(
             "--output",
@@ -299,12 +308,7 @@ class ShowAction(InferenceAction):
         extractors = []
         for vis_spec in vis_specs:
             texture_atlas = get_texture_atlas(args.texture_atlas)
-            texture_atlases_dict = get_texture_atlases(args.texture_atlases_map)
-            vis = cls.VISUALIZERS[vis_spec](
-                cfg=cfg,
-                texture_atlas=texture_atlas,
-                texture_atlases_dict=texture_atlases_dict,
-            )
+            vis = cls.VISUALIZERS[vis_spec](cfg=cfg, texture_atlas=texture_atlas)
             visualizers.append(vis)
             extractor = create_extractor(vis)
             extractors.append(extractor)
