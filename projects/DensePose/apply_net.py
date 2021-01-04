@@ -8,6 +8,9 @@ import os
 import pickle
 import sys
 from typing import Any, ClassVar, Dict, List
+from PIL import Image
+import numpy as np
+
 import torch
 
 from detectron2.config import CfgNode, get_cfg
@@ -155,6 +158,12 @@ class DumpAction(InferenceAction):
         cls: type, context: Dict[str, Any], entry: Dict[str, Any], outputs: Instances
     ):
         image_fpath = entry["file_name"]
+
+        temp_w = 0
+        temp_h = 0
+        with Image.open(image_fpath) as temp_image:
+           temp_w,temp_h = temp_image.size
+        
         logger.info(f"Processing {image_fpath}")
         result = {"file_name": image_fpath}
         if outputs.has("scores"):
@@ -178,15 +187,33 @@ class DumpAction(InferenceAction):
 
         out_fname = os.path.basename(image_fpath)
         out_fname = os.path.join(out_dir,out_fname)
+
+        out_npy_fname = os.path.splitext(out_fname)[0]+".npy"
         out_fname = os.path.splitext(out_fname)[0]+out_ext
         
         with open(out_fname, "wb") as hFile:
             pickle.dump(context["results"], hFile)
             logger.info(f"Output saved to {out_fname}")
 
-        context["results"].clear()
-
+        
         ########################
+
+        bbox_xywh = result['pred_boxes_XYXY'][0]
+        x, y, w, h = int(bbox_xywh[0]), int(bbox_xywh[1]), int(bbox_xywh[2]-bbox_xywh[0]), int(bbox_xywh[3]-bbox_xywh[1]) 
+        img_final_arr =  np.zeros((temp_h,temp_w,3))   
+        pred_densepose = result['pred_densepose']
+        iuv_arr = torch.cat([pred_densepose[0].labels.unsqueeze(0), pred_densepose[0].uv],0).cpu().numpy()
+        mask = np.transpose(iuv_arr,(1,2,0))
+        img_final_arr[y:y+h,x:x+w,:] = mask
+        dense_img = img_final_arr.astype(np.uint8)
+        
+        dense_img = Image.fromarray(dense_img.astype(np.uint8))
+        dense_img = np.array(dense_img)
+        np.save(out_npy_fname,dense_img)
+        logger.info(f"Output saved to {out_npy_fname}")
+        ########################
+
+        context["results"].clear()
 
     @classmethod
     def create_context(cls: type, args: argparse.Namespace, cfg: CfgNode):
