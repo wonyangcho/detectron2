@@ -212,10 +212,10 @@ class DumpAction(InferenceAction):
 
         logger.info(f"dense_img shape {dense_img.shape}")
         logger.info(f"iuv_arr shape {iuv_arr.shape}")
-        dense_img_final = np.concatenate((dense_img, iuv_arr[:, :, 1:]), axis=-1)
+        
 
-        np.save(out_npy_fname,dense_img_final)
-        logger.info(f"Output saved to {out_npy_fname} {dense_img_final.shape}")
+        np.save(out_npy_fname,dense_img)
+        logger.info(f"Output saved to {out_npy_fname} {dense_img.shape}")
         ########################
 
         context["results"].clear()
