@@ -198,21 +198,37 @@ class DumpAction(InferenceAction):
         
         ########################
 
-        bbox_xywh = result['pred_boxes_XYXY'][0]
-        x, y, w, h = int(bbox_xywh[0]), int(bbox_xywh[1]), int(bbox_xywh[2]-bbox_xywh[0]), int(bbox_xywh[3]-bbox_xywh[1]) 
+        bbox_xyxy = result['pred_boxes_XYXY'][0]
+        x1, y1, x2, y2 = int(bbox_xyxy[0]), int(bbox_xyxy[1]), int(bbox_xyxy[2]), int(bbox_xyxy[3]) 
+        w = int(bbox_xyxy[2]-bbox_xyxy[0])
+        h = int(bbox_xyxy[3]-bbox_xyxy[1])
         img_final_arr =  np.zeros((temp_h,temp_w,3))   
+
         pred_densepose = result['pred_densepose']
+        
+        logger.info(f"bbox_xyxy  {bbox_xyxy}")
+        logger.info(f"pred_densepose[0].labels shape {pred_densepose[0].labels.shape}")
+        logger.info(f"pred_densepose[0].labelsunsqueeze(0) shape {pred_densepose[0].labels.unsqueeze(0).shape}")
+        logger.info(f"pred_densepose[0].uv shape {pred_densepose[0].uv.shape}")
+        
         iuv_arr = torch.cat([pred_densepose[0].labels.unsqueeze(0), pred_densepose[0].uv],0).cpu().numpy()
+        
         mask = np.transpose(iuv_arr,(1,2,0))
-        img_final_arr[y:y+h,x:x+w,:] = mask
-        dense_img = img_final_arr.astype(np.uint8)
+        
+
+        
+        img_final_arr[y1:y1+h,x1:x1+w,:] = mask
+        dense_img = img_final_arr
         
         dense_img = Image.fromarray(dense_img.astype(np.uint8))
+        dense_img = dense_img.resize((256, 512),Image.BICUBIC)
         dense_img = np.array(dense_img)
 
+        logger.info(f"img width  {temp_w}, {temp_h}")
         logger.info(f"dense_img shape {dense_img.shape}")
         logger.info(f"iuv_arr shape {iuv_arr.shape}")
-        
+        logger.info(f"dense_img shape {dense_img.shape}")
+
 
         np.save(out_npy_fname,dense_img)
         logger.info(f"Output saved to {out_npy_fname} {dense_img.shape}")
